@@ -7,7 +7,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 import yaml
@@ -33,13 +33,23 @@ class TestCase:
     def __post_init__(self):
         self.lints = [TestLint(**it) for it in self.lints]
 
-    def run(self, checker: str) -> bool:
-        with tempfile.NamedTemporaryFile("w") as file:
+    def run(self, checker: str, vars: dict) -> bool:
+        suffix = ".go" if checker in {"flymake-collection-golangci-lint",
+                                      "flymake-collection-staticcheck"} else ""
+        with tempfile.NamedTemporaryFile("w", suffix=suffix) as file:
             file.write(self.file)
             file.flush()
-            actual_lints = run_flymake(pathlib.Path(file.name), checker)
-            if actual_lints is None:
-                return False
+            go_mod = None
+            if suffix:
+                go_mod = pathlib.Path(file.name).with_name("go.mod")
+                go_mod.write_text("module example.com/flymake-collection\n\ngo 1.21\n")
+            try:
+                actual_lints = run_flymake(pathlib.Path(file.name), checker, vars)
+                if actual_lints is None:
+                    return False
+            finally:
+                if go_mod and go_mod.exists():
+                    go_mod.unlink()
 
         failed = False
         for lint in self.lints:
@@ -60,15 +70,40 @@ class TestCase:
 class TestConfig:
     checker: str
     tests: List[TestCase]
+    vars: dict = field(default_factory=dict)
 
     def __post_init__(self):
         self.tests = [TestCase(**it) for it in self.tests]
 
 
-def run_flymake(src: pathlib.Path, checker: str) -> Optional[List[TestLint]]:
+def _to_elisp(value) -> str:
+    if isinstance(value, list):
+        return f"'({' '.join(_to_elisp(item) for item in value)})"
+    if isinstance(value, bool):
+        return "t" if value else "nil"
+    if value is None:
+        return "nil"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        return json.dumps(value)
+    raise TypeError(f"Unsupported Elisp value: {type(value)}")
+
+
+def _elisp_var_assignments(vars: dict) -> str:
+    if not vars:
+        return ""
+    lines = []
+    for key, value in vars.items():
+        lines.append(f"(setq {key} {_to_elisp(value)})")
+    return "\n".join(lines)
+
+
+def run_flymake(src: pathlib.Path, checker: str, vars: dict) -> Optional[List[TestLint]]:
     with tempfile.NamedTemporaryFile("w") as script, tempfile.NamedTemporaryFile(
         "r"
     ) as out:
+        var_setup = _elisp_var_assignments(vars)
         script.write(
             f"""
 (require 'flymake)
@@ -77,6 +112,8 @@ def run_flymake(src: pathlib.Path, checker: str) -> Optional[List[TestLint]]:
 (add-to-list 'load-path "/workspaces/flymake-collection/src")
 (add-to-list 'load-path "/workspaces/flymake-collection/src/checkers")
 (require (intern "{checker}") "{checker}.el")
+
+{var_setup}
 
 (setq src (find-file-literally "{src}")
       out (find-file "{out.name}"))
@@ -143,7 +180,7 @@ def main(args, vargs, parser) -> bool:
         logging.info("Running tests with checker=%s", cfg.checker)
         for i, test in enumerate(cfg.tests):
             logging.info("Running test case %d name=%s", i, test.name)
-            if not test.run(cfg.checker):
+            if not test.run(cfg.checker, cfg.vars):
                 failed = True
 
     return not failed

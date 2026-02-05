@@ -66,6 +66,12 @@
       (flymake-collection-codespell :disabled t)
       (flymake-collection-clang-tidy :disabled t)
       (flymake-collection-gcc :disabled t)))
+    ((clojure-mode clojure-ts-mode clojurec-mode clojurescript-mode) .
+     (flymake-collection-clj-kondo
+      (flymake-collection-joker :disabled t)))
+    ((go-mode go-ts-mode) .
+     (flymake-collection-golangci-lint
+      (flymake-collection-staticcheck :disabled t)))
     (haskell-mode . (flymake-collection-hlint))
     ((janet-mode janet-ts-mode) . (flymake-collection-janet))
     ((js-mode js2-mode typescript-mode typescript-ts-mode) .
