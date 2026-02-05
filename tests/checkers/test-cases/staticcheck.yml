@@ -1,0 +1,19 @@
+---
+checker: flymake-collection-staticcheck
+vars:
+  flymake-collection-staticcheck-args:
+    - -checks=SA4006
+tests:
+  - name: sa4006
+    file: |
+      package main
+
+      func main() {
+      afterIndex := 1
+      afterIndex = 2
+      _ = afterIndex
+      }
+    lints:
+      - point: [4, 0]
+        level: warning
+        message: "SA4006 this value of afterIndex is never used (staticcheck)"

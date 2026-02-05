@@ -1,0 +1,20 @@
+---
+checker: flymake-collection-golangci-lint
+vars:
+  flymake-collection-golangci-lint-args:
+    - --default=none
+    - --enable=errcheck
+tests:
+  - name: errcheck
+    file: |
+      package main
+
+      import "fmt"
+
+      func main() {
+      fmt.Printf("hi")
+      }
+    lints:
+      - point: [6, 0]
+        level: warning
+        message: "errcheck Error return value of `fmt.Printf` is not checked (golangci-lint)"
