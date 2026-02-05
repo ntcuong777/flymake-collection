@@ -1,0 +1,10 @@
+---
+checker: flymake-collection-joker
+tests:
+  - name: parse-warning
+    file: |
+      (let [a 1])
+    lints:
+      - point: [1, 0]
+        level: warning
+        message: "Parse warning: let form with empty body (joker)"

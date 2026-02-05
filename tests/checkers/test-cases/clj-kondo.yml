@@ -1,0 +1,10 @@
+---
+checker: flymake-collection-clj-kondo
+tests:
+  - name: wrong-arity
+    file: |
+      (select-keys [:a])
+    lints:
+      - point: [1, 0]
+        level: error
+        message: "wrong number of args (1) passed to clojure.core/select-keys (clj-kondo)"
